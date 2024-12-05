@@ -3,7 +3,20 @@ const habitNameInput = document.getElementById('habitName');
 const addHabitBtn = document.getElementById('addHabitBtn');
 const habitList = document.getElementById('habitList');
 
-// Создание чекбоксов
+// Получение данных из localStorage
+function getHabits() {
+  const habits = JSON.parse(localStorage.getItem('habits')) || [];
+  return habits;
+}
+
+// Сохранение данных в localStorage
+function saveHabits(habits) {
+  localStorage.setItem('habits', JSON.stringify(habits));
+}
+
+/* Создание чекбоксов. Создает HTML-разметку для чекбоксов.
+Функция принимает объект habit
+*/
 function createCheckboxes(habit) {
   const checkboxes = habit.dailyProgress.map((completed, index) => `
     <label>
@@ -32,7 +45,8 @@ function createButtons(habit) {
 }
 
 // Отображение привычек
-function renderHabits(habits) {
+function renderHabits() {
+  const habits = getHabits();
   habitList.innerHTML = '';
   habits.forEach(habit => {
     const li = document.createElement('li');
@@ -41,7 +55,7 @@ function renderHabits(habits) {
         <h3>${habit.name}</h3>
         <div class="habit-checkboxes">${createCheckboxes(habit)}</div>
         <div class="habit-button">${createButtons(habit)}</div>
-      <div>
+      </div>
     `;
     habitList.appendChild(li);
   });
@@ -49,59 +63,52 @@ function renderHabits(habits) {
 
 // Отмечаем день для привычки
 function markDay(habitId, dayIndex, isChecked) {
-  fetch(`http://localhost:5001/api/habits/${habitId}/day/${dayIndex}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ completed: isChecked }) 
-  })
-  .then(fetchHabits);
-}
-
-// Получение привычек с сервера
-function fetchHabits() {
-  fetch('http://localhost:5001/api/habits')
-    .then(response => {
-      if (!response.ok) throw new Error('Network response was not ok');
-      return response.json();
-    })
-    .then(renderHabits);
+  const habits = getHabits();
+  const habit = habits.find(h => h.id === habitId);
+  habit.dailyProgress[dayIndex] = isChecked;
+  saveHabits(habits);
+  renderHabits();
 }
 
 // Добавление новой привычки
 addHabitBtn.addEventListener('click', () => {
   const name = habitNameInput.value.trim();
   if (name) {
-    fetch('http://localhost:5001/api/habits', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, dailyProgress: Array(30).fill(false) })
-    })
-    .then(() => {
-      habitNameInput.value = ''; 
-      fetchHabits();
-    });
+    const habits = getHabits();
+    const newHabit = {
+      id: Date.now(),  // Используем текущее время как уникальный идентификатор
+      name,
+      dailyProgress: Array(30).fill(false),  // 30 дней с состоянием "не выполнено"
+      completed: false,
+    };
+    habits.push(newHabit);
+    saveHabits(habits);
+    habitNameInput.value = ''; 
+    renderHabits();
   } else {
-    alert('Пожалуйста, введите имя привычки'); 
+    alert('Пожалуйста, введите имя привычки');
   }
 });
 
 // Удаление привычки
 function deleteHabit(id) {
-  fetch(`http://localhost:5001/api/habits/${id}`, { method: 'DELETE' })
-    .then(fetchHabits);
+  const habits = getHabits();
+  const updatedHabits = habits.filter(h => h.id !== id);
+  saveHabits(updatedHabits);
+  renderHabits();
 }
 
 // Завершение привычки
 function completeHabit(habitId, button, habitName) {
-  fetch(`http://localhost:5001/api/habits/${habitId}/complete`, { method: 'POST' })
-    .then(() => {
-      button.classList.add('completed'); 
-      button.disabled = true; 
-      alert(`Поздравляем! Вы завершили привычку: ${habitName}`);
-      fetchHabits(); 
-    });
+  const habits = getHabits();
+  const habit = habits.find(h => h.id === habitId);
+  habit.completed = true;
+  saveHabits(habits);
+  button.classList.add('completed');
+  button.disabled = true;
+  alert(`Поздравляем! Вы завершили привычку: ${habitName}`);
+  renderHabits();
 }
 
 // Инициализация приложения
-fetchHabits();
-
+renderHabits();
